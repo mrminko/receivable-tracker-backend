@@ -22,8 +22,9 @@ func (Query *DBQuery) getAllUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := Query.db.GetAllUsers(r.Context())
 	if err != nil {
 		log.Println("Error when querying users")
+		return
 	}
-	userList := make([]UserJSON, len(users))
+	var userList []UserJSON
 	for _, user := range users {
 		userList = append(userList, UserJSON{
 			Id:        user.ID,
@@ -61,6 +62,32 @@ func (Query *DBQuery) createUser(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		errMsg := fmt.Sprintf("Error when writing to database: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+	respondWithJSON(w, 201, user)
+}
+
+func (Query *DBQuery) deleteUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Id string `json:"id"`
+	}
+	params := parameters{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&params)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error when decoding data: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+	userId, err := uuid.Parse(params.Id)
+	if err != nil {
+		errMsg := fmt.Sprintf("Invalid id given: %v", err)
+		respondWithError(w, 500, errMsg)
+	}
+	user, err := Query.db.DeleteUser(r.Context(), userId)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error when deleting user: %v", err)
 		respondWithError(w, 500, errMsg)
 		return
 	}

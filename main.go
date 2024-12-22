@@ -44,9 +44,16 @@ func main() {
 	Query := DBQuery{
 		db: db,
 	}
+
 	router := chi.NewRouter()
 	router.Get("/users", Query.getAllUsers)
-	router.Post("/users", Query.createUser)
+	router.Post("/users/create", Query.createUser)
+	router.Post("/users/delete", Query.deleteUser)
+
+	router.Get("/receivables", Query.getAllReceivables)
+	router.Post("/receivables/create", Query.createReceivable)
+	//router.Post("/receivables", Query.getAllReceivables)
+
 	srv := http.Server{
 		Handler: router,
 		Addr:    ":" + port,

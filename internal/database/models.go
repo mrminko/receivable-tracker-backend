@@ -11,6 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
+type Receivable struct {
+	ID             uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	Userid         uuid.UUID
+	Date           time.Time
+	AmountTotal    float64
+	AmountReceived float64
+	AmountLeft     float64
+	Status         string
+}
+
 type User struct {
 	ID        uuid.UUID
 	Name      string
