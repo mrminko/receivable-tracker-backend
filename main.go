@@ -46,13 +46,15 @@ func main() {
 	}
 
 	router := chi.NewRouter()
-	router.Get("/users", Query.getAllUsers)
+	router.Get("/users/all", Query.getAllUsers)
 	router.Post("/users/create", Query.createUser)
-	router.Post("/users/delete", Query.deleteUser)
+	router.Post("/users/delete/{userId}", Query.deleteUser)
+	router.Post("/users/update/{userId}", Query.updateUser)
 
-	router.Get("/receivables", Query.getAllReceivables)
+	router.Get("/receivables/all", Query.getAllReceivables)
 	router.Post("/receivables/create", Query.createReceivable)
-	//router.Post("/receivables", Query.getAllReceivables)
+	router.Post("/receivables/delete/{receivableId}", Query.deleteReceivable)
+	router.Post("/receivables/update/{receivableId}", Query.updateReceivable)
 
 	srv := http.Server{
 		Handler: router,

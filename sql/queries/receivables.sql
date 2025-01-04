@@ -18,7 +18,8 @@ SET
     updated_at = NOW(),
     amount_total = $3,
     amount_received = $4,
-    amount_left = $5
+    amount_left = $5,
+    status = $6
 WHERE id=$1
 RETURNING *;
 

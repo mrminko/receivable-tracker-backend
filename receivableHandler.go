@@ -17,6 +17,43 @@ type ReceivableStatus struct {
 	Valid  bool
 }
 
+func validateReceivableAndAssignStatus(receivable *database.UpdateReceivableParams) (errMsg error) {
+	if receivable.AmountTotal == 0 {
+		return fmt.Errorf("amount total should not be 0, delete the receivable instead")
+	}
+
+	if (receivable.AmountReceived < 0) || (receivable.AmountTotal < 0) || (receivable.AmountLeft < 0) {
+		return fmt.Errorf("amounts should not be less than 0")
+	}
+
+	receivable.AmountLeft = receivable.AmountTotal - receivable.AmountReceived
+
+	if receivable.AmountLeft <= 0 {
+		receivable.Status = "closed"
+		return nil
+	} else if receivable.AmountLeft == receivable.AmountTotal {
+		receivable.Status = "open"
+		return nil
+	} else {
+		receivable.Status = "partial"
+		return nil
+	}
+
+}
+
+func calculateStatus(receivable *database.UpdateReceivableParams) (status string) {
+	if receivable.AmountLeft == 0 {
+		status = "closed"
+	}
+	if (receivable.AmountReceived < receivable.AmountTotal) && (receivable.AmountReceived != 0) {
+		status = "partial"
+	}
+	if receivable.AmountReceived == 0 {
+		status = "open"
+	}
+	return status
+}
+
 func validateStatus(status string) ReceivableStatus {
 	switch status {
 	case "open", "partial", "closed":
@@ -124,27 +161,91 @@ func (Query *DBQuery) createReceivable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (Query *DBQuery) deleteReceivable(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Id string `json:"id"`
-	}
-	params := parameters{}
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&params)
+	receivableId, err := utils.StringToUUID(r, "receivableId")
 	if err != nil {
-		errMsg := fmt.Sprintf("Error when decoding data: %v", err)
-		respondWithError(w, 500, errMsg)
-		return
-	}
-	userId, err := uuid.Parse(params.Id)
-	if err != nil {
-		errMsg := fmt.Sprintf("Invalid id given: %v", err)
+		errMsg := fmt.Sprintf("Invalid receivable id given: %v", err)
 		respondWithError(w, 500, errMsg)
 	}
-	user, err := Query.db.DeleteUser(r.Context(), userId)
+	receivable, err := Query.db.DeleteReceivable(r.Context(), receivableId)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error when deleting user: %v", err)
 		respondWithError(w, 500, errMsg)
 		return
 	}
-	respondWithJSON(w, 201, user)
+	respondWithJSON(w, 200, receivable)
+}
+
+func (Query *DBQuery) updateReceivable(w http.ResponseWriter, r *http.Request) {
+	receivableId, err := utils.StringToUUID(r, "receivableId")
+	if err != nil {
+		errMsg := fmt.Sprintf("Invalid receivable id given: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+	existingReceivable, err := Query.db.GetReceivableByID(r.Context(), receivableId)
+	if err != nil {
+		errMsg := fmt.Sprintf("Entry does not exist: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+
+	type parameters struct {
+		Date           string   `json:"date,omitempty"`
+		AmountTotal    *float64 `json:"amount_total"`
+		AmountReceived *float64 `json:"amount_received"`
+	}
+
+	params := &parameters{}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	err = decoder.Decode(params)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error when decoding data: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+
+	UpdatedParams := &database.UpdateReceivableParams{}
+
+	UpdatedParams.ID = existingReceivable.ID
+
+	if params.Date != "" {
+		dateTime, err := utils.ParseTime(params.Date)
+		if err != nil {
+			errMsg := fmt.Sprintln("Error when parsing date. Please provide in the format \"02-01-2006\"")
+			respondWithError(w, 500, errMsg)
+			return
+		}
+		UpdatedParams.Date = dateTime
+	} else {
+		UpdatedParams.Date = existingReceivable.Date
+	}
+
+	if params.AmountReceived != nil {
+		UpdatedParams.AmountReceived = *params.AmountReceived
+	} else {
+		UpdatedParams.AmountReceived = existingReceivable.AmountReceived
+	}
+
+	if params.AmountTotal != nil {
+		UpdatedParams.AmountTotal = *params.AmountTotal
+	} else {
+		UpdatedParams.AmountTotal = existingReceivable.AmountTotal
+	}
+
+	err = validateReceivableAndAssignStatus(UpdatedParams)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error when validating receivable: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+
+	updatedReceivable, err := Query.db.UpdateReceivable(r.Context(), *UpdatedParams)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error when updating receivable: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+
+	respondWithJSON(w, 200, updatedReceivable)
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/mrminko/receivable-tracker/internal/database"
+	"github.com/mrminko/receivable-tracker/utils"
 	"log"
 	"net/http"
 	"time"
@@ -69,21 +70,11 @@ func (Query *DBQuery) createUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (Query *DBQuery) deleteUser(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Id string `json:"id"`
-	}
-	params := parameters{}
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&params)
+	userId, err := utils.StringToUUID(r, "userId")
 	if err != nil {
-		errMsg := fmt.Sprintf("Error when decoding data: %v", err)
+		errMsg := fmt.Sprintf("Invalid user id given: %v", err)
 		respondWithError(w, 500, errMsg)
 		return
-	}
-	userId, err := uuid.Parse(params.Id)
-	if err != nil {
-		errMsg := fmt.Sprintf("Invalid id given: %v", err)
-		respondWithError(w, 500, errMsg)
 	}
 	user, err := Query.db.DeleteUser(r.Context(), userId)
 	if err != nil {
@@ -91,5 +82,55 @@ func (Query *DBQuery) deleteUser(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, errMsg)
 		return
 	}
+	respondWithJSON(w, 201, user)
+}
+
+func (Query *DBQuery) updateUser(w http.ResponseWriter, r *http.Request) {
+	userId, err := utils.StringToUUID(r, "userId")
+	if err != nil {
+		errMsg := fmt.Sprintf("Invalid user id given: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+	user, err := Query.db.GetUserByID(r.Context(), userId)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error when retrieving user record: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+
+	UpdatedParams := &database.UpdateUserParams{}
+
+	type parameters struct {
+		Name  string `json:"name,omitempty"`
+		Phone string `json:"phone,omitempty"`
+	}
+	params := &parameters{}
+	UpdatedParams.ID = user.ID
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	err = decoder.Decode(params)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error when decoding parameters: %v", err)
+		respondWithError(w, 500, errMsg)
+		return
+	}
+
+	if params.Name != "" {
+		UpdatedParams.Name = params.Name
+	} else {
+		UpdatedParams.Name = user.Name
+	}
+
+	if params.Phone != "" {
+		UpdatedParams.Phone = sql.NullString{
+			String: params.Phone,
+			Valid:  true,
+		}
+	} else {
+		UpdatedParams.Phone = user.Phone
+	}
+
 	respondWithJSON(w, 201, user)
 }

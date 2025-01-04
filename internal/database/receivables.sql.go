@@ -228,7 +228,8 @@ SET
     updated_at = NOW(),
     amount_total = $3,
     amount_received = $4,
-    amount_left = $5
+    amount_left = $5,
+    status = $6
 WHERE id=$1
 RETURNING id, created_at, updated_at, userid, date, amount_total, amount_received, amount_left, status
 `
@@ -239,6 +240,7 @@ type UpdateReceivableParams struct {
 	AmountTotal    float64
 	AmountReceived float64
 	AmountLeft     float64
+	Status         string
 }
 
 func (q *Queries) UpdateReceivable(ctx context.Context, arg UpdateReceivableParams) (Receivable, error) {
@@ -248,6 +250,7 @@ func (q *Queries) UpdateReceivable(ctx context.Context, arg UpdateReceivablePara
 		arg.AmountTotal,
 		arg.AmountReceived,
 		arg.AmountLeft,
+		arg.Status,
 	)
 	var i Receivable
 	err := row.Scan(
